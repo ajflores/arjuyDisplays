@@ -9,6 +9,8 @@ Rectangle {
 
     property var monitor: ({})
     property var issues: []
+    property var workspaceNotices: []
+    readonly property var notes: has ? workspaceNotices.filter(n => n.monitors.indexOf(monitor.name) >= 0) : []
     readonly property var mine: has ? issues.filter(i => i.monitors.indexOf(monitor.name) >= 0) : []
     readonly property bool has: monitor && monitor.name !== undefined
 
@@ -21,13 +23,33 @@ Rectangle {
                        qsTr("Flipped"), qsTr("Flipped 90°"), qsTr("Flipped 180°"), qsTr("Flipped 270°")]
         return names[t] !== undefined ? names[t] : String(t)
     }
+    function workspaceTags(w) {
+        const tags = []
+        if (w.active) tags.push(qsTr("active"))
+        tags.push(w.windows > 0 ? qsTr("Windows: %1").arg(w.windows) : qsTr("empty"))
+        if (w.persistent) tags.push(qsTr("persistent"))
+        if (w.pinned) tags.push(qsTr("fixed by a rule"))
+        if (w.guest) tags.push(qsTr("outside the block"))
+        return tags.join(" · ")
+    }
     function num(v, digits) { return Number(v).toLocaleString(Qt.locale(), 'f', digits) }
 
-    ColumnLayout {
+    // Everything scrolls when the window is short.
+    Flickable {
+        id: flick
         anchors.fill: parent
         anchors.margins: 16
-        spacing: 10
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
         visible: panel.has
+        ScrollBar.vertical: ScrollBar {}
+
+    ColumnLayout {
+        id: content
+        width: flick.width - 8
+        spacing: 10
 
         Label {
             text: panel.has ? panel.monitor.name : ""
@@ -86,6 +108,67 @@ Rectangle {
             }
         }
 
+        // Workspaces of this monitor and Omarchy's block for it (read only).
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: qsTr("Workspaces"); font.bold: true }
+            Item { Layout.fillWidth: true }
+            Label {
+                text: !panel.has ? "" : panel.monitor.blockKnown
+                    ? qsTr("Omarchy block: %1–%2").arg(panel.monitor.blockFirst).arg(panel.monitor.blockLast)
+                    : qsTr("Omarchy block: unknown")
+                opacity: 0.7
+                font.pixelSize: 12
+            }
+        }
+        ListView {
+            id: wsList
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 150)
+            clip: true
+            spacing: 3
+            model: panel.has ? (panel.monitor.workspaces || []) : []
+            ScrollBar.vertical: ScrollBar {}
+            delegate: RowLayout {
+                required property var modelData
+                width: wsList.width
+                spacing: 8
+                WorkspaceChip { ws: modelData; fontSize: 11; Layout.preferredWidth: 64; Layout.alignment: Qt.AlignVCenter }
+                Label {
+                    Layout.fillWidth: true
+                    font.pixelSize: 12
+                    wrapMode: Text.Wrap
+                    opacity: 0.85
+                    text: panel.workspaceTags(modelData)
+                }
+            }
+        }
+        Label {
+            visible: panel.has && (panel.monitor.workspaces || []).length === 0
+            text: qsTr("No workspaces reported")
+            opacity: 0.6
+            font.pixelSize: 12
+        }
+        Label {
+            Layout.fillWidth: true
+            visible: panel.has && panel.monitor.specialWorkspace !== ""
+            wrapMode: Text.Wrap
+            font.pixelSize: 12
+            opacity: 0.8
+            text: qsTr("Special workspace open: %1").arg(panel.has ? panel.monitor.specialWorkspace : "")
+        }
+        Repeater {
+            model: panel.notes
+            delegate: Label {
+                required property var modelData
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                font.pixelSize: 12
+                color: "#8fb4e8"
+                text: "ⓘ " + modelData.message
+            }
+        }
+
         Label { text: qsTr("Layout checks"); font.bold: true }
         ListView {
             id: checks
@@ -119,7 +202,7 @@ Rectangle {
         ListView {
             id: modes
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.preferredHeight: 150
             clip: true
             model: panel.has ? panel.monitor.availableModes : []
             ScrollBar.vertical: ScrollBar {}
@@ -135,6 +218,7 @@ Rectangle {
                 font.bold: current
             }
         }
+    }
     }
 
     Label {

@@ -10,6 +10,7 @@
 #include "eventwatcher.h"
 #include "layoutgeometry.h"
 #include "monitorparser.h"
+#include "workspaces.h"
 
 // Reads the monitor layout from Hyprland and exposes it to QML. It also keeps
 // a pending (preview) arrangement with undo/redo and checks it for problems.
@@ -26,6 +27,9 @@ class Backend : public QObject {
     Q_PROPERTY(bool versionsTested READ versionsTested NOTIFY versionsChanged)
     Q_PROPERTY(bool readOnly READ readOnly CONSTANT)
     Q_PROPERTY(QVariantList issues READ issues NOTIFY issuesChanged)
+    Q_PROPERTY(QVariantList workspaceNotices READ workspaceNotices NOTIFY workspacesChanged)
+    Q_PROPERTY(QString workspaceError READ workspaceError NOTIFY workspacesChanged)
+    Q_PROPERTY(QVariantList specialWorkspaces READ specialWorkspaces NOTIFY workspacesChanged)
     Q_PROPERTY(bool hasPending READ hasPending NOTIFY pendingChanged)
     Q_PROPERTY(QVariantList pendingList READ pendingList NOTIFY pendingChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY pendingChanged)
@@ -49,6 +53,13 @@ public:
     // Always true in phase 1; kept so the UI says so.
     bool readOnly() const { return true; }
     const QList<MonitorInfo> &monitorList() const { return m_monitors; }
+
+    // Workspaces (read only): notices about conflicts with Omarchy's blocks,
+    // why they could not be read, and the special:* ones apart.
+    QVariantList workspaceNotices() const { return m_workspaceNotices; }
+    QString workspaceError() const { return m_workspaces.error; }
+    QVariantList specialWorkspaces() const { return m_specialList; }
+    const WorkspaceModel &workspaceModel() const { return m_workspaces; }
 
     QVariantList issues() const { return m_issues; }
     bool hasPending() const { return !m_pending.isEmpty(); }
@@ -82,6 +93,7 @@ signals:
     void warningsChanged();
     void versionsChanged();
     void issuesChanged();
+    void workspacesChanged();
     void pendingChanged();
 
 private:
@@ -89,6 +101,7 @@ private:
 
     void readVersions();
     void rebuild();
+    void readWorkspaces();
     void commit(const PendingMap &next);
     bool movable(int index) const;
     QPoint effectivePos(int index) const;
@@ -106,6 +119,8 @@ private:
 
     PendingMap m_pending;
     QList<PendingMap> m_undo, m_redo;
+    WorkspaceModel m_workspaces;
+    QVariantList m_workspaceNotices, m_specialList;
     QVariantList m_issues, m_pendingList;
     QString m_notice;
     int m_dragIndex = -1;

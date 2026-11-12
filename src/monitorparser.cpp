@@ -109,6 +109,13 @@ QList<MonitorInfo> MonitorParser::parse(const QByteArray &json, QString *error) 
         m.focused = o.value("focused").toBool(false);
         const QString mirror = o.value("mirrorOf").toString();
         m.mirrorOf = (mirror.isEmpty() || mirror == "none") ? QString() : mirror;
+        // Optional: tolerate hyprctl versions that do not report them.
+        const auto active = o.value("activeWorkspace").toObject();
+        if (isNumber(active.value("id"))) {
+            m.activeWorkspaceId = active.value("id").toInt();
+            m.activeWorkspaceName = active.value("name").toString();
+        }
+        m.specialWorkspace = o.value("specialWorkspace").toObject().value("name").toString();
         const auto modes = o.value("availableModes");
         if (!modes.isUndefined() && !modes.isArray())
             return fail(tr("Monitor %1 has an invalid list of modes.").arg(name));

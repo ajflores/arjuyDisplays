@@ -13,6 +13,7 @@
 #include "theme.h"
 #include "translator.h"
 #include "versions.h"
+#include "workspaces.h"
 
 #ifndef SOURCE_DIR
 #define SOURCE_DIR "."
@@ -50,7 +51,48 @@ private:
         return path;
     }
 
+    // A hyprctl that answers monitors, workspaces and workspacerules from files.
+    static QString fakeWorkspaceHyprctl(const QTemporaryDir &dir, const QString &monitors, const QString &workspaces,
+                                        const QString &rules) {
+        const QString path = dir.filePath("hyprctl");
+        write(path,
+              "#!/bin/sh\ncase \"$*\" in\n"
+              "  *version*) echo '{\"version\":\"0.56.2\"}' ;;\n"
+              "  *workspacerules*) " + rules.toUtf8() + " ;;\n"
+              "  *workspaces*) " + workspaces.toUtf8() + " ;;\n"
+              "  *monitors*) cat '" + monitors.toUtf8() + "' ;;\n"
+              "  *) exit 2 ;;\nesac\n", true);
+        return path;
+    }
+    static QString fixturePath(const QString &name) { return QString(SOURCE_DIR) + "/" + name; }
+    struct RealState {
+        QList<MonitorInfo> monitors;
+        QList<WorkspaceInfo> workspaces;
+        QList<WorkspaceRule> rules;
+        BlockState blocks;
+    };
+    static RealState realState() {
+        RealState s;
+        QString error;
+        s.monitors = MonitorParser::parse(fixture("ws-real-monitors.json"), &error);
+        s.workspaces = Workspaces::parseWorkspaces(fixture("ws-real-workspaces.json"), &error);
+        s.rules = Workspaces::parseRules(fixture("ws-real-rules.json"), &error);
+        s.blocks = Workspaces::parseBlockState(fixture("ws-real-state.txt"));
+        return s;
+    }
+    static QList<int> idsOf(const MonitorWorkspaces &m) {
+        QList<int> ids;
+        for (const auto &w : m.workspaces)
+            ids << w.id;
+        return ids;
+    }
+
 private slots:
+    void initTestCase() {
+        // Never read the real Omarchy state file from tests.
+        qputenv("ARJUY_OMARCHY_WORKSPACES", QByteArray("/nonexistent/arjuy-test/monitor-workspaces"));
+    }
+
     void parsesRealisticThreeMonitors() {
         QString error;
         const auto list = MonitorParser::parse(fixture("three-monitors.json"), &error);
@@ -206,7 +248,12 @@ private slots:
         QVERIFY(EventWatcher::isRelevant("monitoradded>>DP-3"));
         QVERIFY(EventWatcher::isRelevant("monitorremoved>>DP-3"));
         QVERIFY(EventWatcher::isRelevant("configreloaded>>"));
-        QVERIFY(!EventWatcher::isRelevant("workspace>>2"));
+        for (const char *e : {"workspace>>2", "workspacev2>>2,2", "createworkspace>>3", "createworkspacev2>>3,3",
+                              "destroyworkspace>>3", "destroyworkspacev2>>3,3", "moveworkspace>>3,DP-3",
+                              "moveworkspacev2>>3,3,DP-3", "focusedmon>>DP-3,2"})
+            QVERIFY2(EventWatcher::isRelevant(e), e);
+        QVERIFY(!EventWatcher::isRelevant("openwindow>>1,2,3,4"));
+        QVERIFY(!EventWatcher::isRelevant("activewindow>>x"));
     }
 
     void eventWatcherDebouncesAndReconnects() {
@@ -616,6 +663,294 @@ private slots:
         QVERIFY(identifier.windowCount() >= 1);
         QTRY_VERIFY_WITH_TIMEOUT(!identifier.active(), 2000);
         QCOMPARE(identifier.windowCount(), 0);
+    }
+
+    // ---- workspaces ------------------------------------------------------------
+
+    void workspacesParseRealState() {
+        QString error;
+        const auto list = Workspaces::parseWorkspaces(fixture("ws-real-workspaces.json"), &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(list.size(), 10);
+        int specials = 0;
+        for (const auto &w : list)
+            specials += w.special;
+        QCOMPARE(specials, 1);
+        const auto rules = Workspaces::parseRules(fixture("ws-real-rules.json"), &error);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(rules.size(), 10);
+        QCOMPARE(rules[0].workspace, QString("special:qconsole"));
+        QCOMPARE(rules[0].id, -1);
+        QCOMPARE(rules[1].id, 1);
+        QCOMPARE(rules[1].monitor, QString("DP-3"));
+        QVERIFY(rules[1].persistent && rules[1].isDefault);
+        QVERIFY(rules[7].monitor.isEmpty());  // 17 has no monitor
+        const auto monitors = MonitorParser::parse(fixture("ws-real-monitors.json"), &error);
+        QCOMPARE(monitors[1].activeWorkspaceId, 11);
+    }
+
+    void workspacesRejectCorruptJson() {
+        QString error;
+        QVERIFY(Workspaces::parseWorkspaces(fixture("ws-corrupt.json"), &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        for (const char *bad : {"{}", "[1]", R"([{"id":1}])", R"([{"id":"1","name":"1","monitor":"A","windows":0}])",
+                                R"([{"id":1,"name":"1","monitor":"A","windows":-1}])",
+                                R"([{"id":1.5,"name":"1","monitor":"A","windows":0}])"}) {
+            error.clear();
+            QVERIFY2(Workspaces::parseWorkspaces(bad, &error).isEmpty(), bad);
+            QVERIFY2(!error.isEmpty(), bad);
+        }
+        for (const char *bad : {"", "{}", "[1]", R"([{"monitor":"A"}])", "[{"}) {
+            error.clear();
+            QVERIFY2(Workspaces::parseRules(bad, &error).isEmpty(), bad);
+            QVERIFY2(!error.isEmpty(), bad);
+        }
+        error.clear();
+        QVERIFY(Workspaces::parseWorkspaces("[]", &error).isEmpty());
+        QVERIFY(error.isEmpty());  // an empty list is valid
+    }
+
+    void blockStateParsingIsTolerant() {
+        auto s = Workspaces::parseBlockState(fixture("ws-real-state.txt"));
+        QCOMPARE(s.status, BlockState::Ok);
+        QCOMPARE(s.entries.size(), 4);
+        QCOMPARE(s.entries[2].connector, QString("DP-5"));
+        QCOMPARE(s.entries[2].identity, QString("Technical Concepts Ltd MK27X7100 000000000000 #2"));
+        QCOMPARE(s.entries[3].identity, QString("FALLBACK"));
+        QVERIFY(s.entries[3].connector.isEmpty());
+        // garbage lines and CRLF are skipped, good lines stay
+        s = Workspaces::parseBlockState("junk\n0\teDP-1\tPanel X\r\nnot a number\tx\ty\n1\t\tOther\n\n");
+        QCOMPARE(s.status, BlockState::Ok);
+        QCOMPARE(s.entries.size(), 2);
+        QCOMPARE(s.entries[0].identity, QString("Panel X"));
+        // nothing usable, or the same block twice: not understood
+        QCOMPARE(Workspaces::parseBlockState("").status, BlockState::Invalid);
+        QCOMPARE(Workspaces::parseBlockState("hello world\n").status, BlockState::Invalid);
+        QCOMPARE(Workspaces::parseBlockState(QByteArray("\xff\xfe\x00\x01", 4)).status, BlockState::Invalid);
+        QCOMPARE(Workspaces::parseBlockState("0\tA\tx\n0\tB\ty\n").status, BlockState::Invalid);
+    }
+
+    void blockStateFileIsReadFromDisk() {
+        QTemporaryDir dir;
+        QCOMPARE(Workspaces::readBlockState(dir.filePath("nope")).status, BlockState::Missing);
+        QCOMPARE(Workspaces::readBlockState(dir.path()).status, BlockState::Unreadable);  // a directory
+        write(dir.filePath("state"), fixture("ws-real-state.txt"));
+        QCOMPARE(Workspaces::readBlockState(dir.filePath("state")).status, BlockState::Ok);
+        write(dir.filePath("bad"), "\x01\x02 nonsense");
+        QCOMPARE(Workspaces::readBlockState(dir.filePath("bad")).status, BlockState::Invalid);
+        // the default path honours the override (tests never use the real one)
+        QCOMPARE(Workspaces::defaultStatePath(), QString("/nonexistent/arjuy-test/monitor-workspaces"));
+    }
+
+    void workspacesCombineRealState() {
+        const auto s = realState();
+        const auto model = Workspaces::build(s.monitors, s.workspaces, s.rules, s.blocks);
+        QVERIFY(model.ok);
+        QCOMPARE(model.fallbackBlock, 3);
+        QCOMPARE(model.special.size(), 1);
+        QCOMPARE(model.monitors.size(), 3);
+
+        const auto *edp = model.forMonitor("eDP-1"), *dp3 = model.forMonitor("DP-3"), *dp5 = model.forMonitor("DP-5");
+        QVERIFY(edp && dp3 && dp5);
+        // Twin monitors (same make/model/serial) get their own blocks through the connector.
+        QVERIFY(edp->block.known && dp3->block.known && dp5->block.known);
+        QCOMPARE(edp->block.first, 1);
+        QCOMPARE(edp->block.last, 10);
+        QCOMPARE(dp3->block.first, 11);
+        QCOMPARE(dp5->block.first, 21);
+        QCOMPARE(dp5->block.last, 30);
+        QCOMPARE(dp5->block.identity, QString("Technical Concepts Ltd MK27X7100 000000000000 #2"));
+
+        QCOMPARE(idsOf(*edp), QList<int>({5, 6}));
+        QCOMPARE(idsOf(*dp3), QList<int>({1, 2, 11, 12}));
+        QCOMPARE(idsOf(*dp5), QList<int>({3, 4, 21}));
+        QCOMPARE(dp3->activeId, 11);
+        for (const auto &w : dp3->workspaces)
+            QCOMPARE(w.active, w.id == 11);
+        QVERIFY(dp3->workspaces[0].guest && dp3->workspaces[1].guest);
+        QVERIFY(!dp3->workspaces[2].guest && !dp3->workspaces[3].guest);
+        QVERIFY(dp3->workspaces[0].persistent && !dp3->workspaces[2].persistent);
+        QVERIFY(dp3->workspaces[0].pinned);
+        QCOMPARE(dp3->workspaces[0].pinnedTo, QString("DP-3"));
+        QCOMPARE(dp3->workspaces[2].windows, 1);
+        QVERIFY(!dp3->workspaces[3].pinned);  // 12 has a rule but no monitor
+        QVERIFY(!edp->workspaces[0].guest && !edp->workspaces[1].guest);
+        QVERIFY(edp->workspaces[0].active && !edp->workspaces[1].active);
+        QVERIFY(dp5->workspaces[0].guest && !dp5->workspaces[2].guest);
+
+        // Two notes: workspaces 1,2 on DP-3 and 3,4 on DP-5 belong to eDP-1's block.
+        QCOMPARE(model.conflicts.size(), 2);
+        for (const auto &c : model.conflicts) {
+            QCOMPARE(c.kind, QString("pinned-outside-block"));
+            QCOMPARE(c.monitors.value(1), QString("eDP-1"));
+        }
+        QCOMPARE(model.conflicts[0].monitors.value(0), QString("DP-3"));
+        QCOMPARE(model.conflicts[0].ids, QList<int>({1, 2}));
+        QCOMPARE(model.conflicts[1].monitors.value(0), QString("DP-5"));
+        QCOMPARE(model.conflicts[1].ids, QList<int>({3, 4}));
+        QVERIFY2(model.conflicts[0].message.contains("Workspaces 1, 2 are pinned to DP-3"), qPrintable(model.conflicts[0].message));
+        QVERIFY(model.conflicts[0].message.contains("eDP-1's block (1-10)"));
+    }
+
+    void workspaceConflictSingularMessage() {
+        auto s = realState();
+        QList<WorkspaceRule> rules;
+        for (const auto &r : s.rules)
+            if (r.id == 1 || r.id < 0 || r.monitor.isEmpty())
+                rules << r;
+        const auto model = Workspaces::build(s.monitors, s.workspaces, rules, s.blocks);
+        QCOMPARE(model.conflicts.size(), 1);
+        QCOMPARE(model.conflicts[0].message,
+                 QString("Workspace 1 is pinned to DP-3 by a workspace rule but belongs to eDP-1's block (1-10) in Omarchy."));
+    }
+
+    void workspaceUnknownBlockNeverFails() {
+        const auto s = realState();
+        for (const auto &blocks : {BlockState{}, BlockState{BlockState::Invalid, {}}, BlockState{BlockState::Unreadable, {}}}) {
+            const auto model = Workspaces::build(s.monitors, s.workspaces, s.rules, blocks);
+            QVERIFY(model.ok);
+            QVERIFY(model.conflicts.isEmpty());  // no block to compare with
+            for (const auto &m : model.monitors) {
+                QVERIFY(!m.block.known);
+                for (const auto &w : m.workspaces)
+                    QVERIFY(!w.guest);
+            }
+            QCOMPARE(model.forMonitor("DP-3")->workspaces.size(), 4);
+        }
+        // A state file that does not list a monitor leaves just that one unknown.
+        const auto partial = Workspaces::parseBlockState("0\teDP-1\tAU Optronics 0x403D\n");
+        const auto model = Workspaces::build(s.monitors, s.workspaces, s.rules, partial);
+        QVERIFY(model.forMonitor("eDP-1")->block.known);
+        QVERIFY(!model.forMonitor("DP-3")->block.known);
+    }
+
+    void workspaceConflictsForWindowsDisconnectedAndDuplicates() {
+        auto s = realState();
+        // A window on workspace 2 (DP-3, whose block is 11-20), a rule to a monitor that is gone,
+        // and workspace 12 listed twice.
+        for (auto &w : s.workspaces)
+            if (w.id == 2)
+                w.windows = 3;
+        WorkspaceRule gone;
+        gone.workspace = "40";
+        gone.id = 40;
+        gone.monitor = "DP-9";
+        s.rules << gone;
+        WorkspaceInfo twin;
+        twin.id = 12;
+        twin.name = "12";
+        twin.monitor = "DP-5";
+        s.workspaces << twin;
+        const auto model = Workspaces::build(s.monitors, s.workspaces, s.rules, s.blocks);
+        QMap<QString, WorkspaceConflict> byKind;
+        for (const auto &c : model.conflicts)
+            byKind.insert(c.kind, c);
+        QVERIFY(byKind.contains("windows-outside-block"));
+        QCOMPARE(byKind["windows-outside-block"].ids, QList<int>({2}));
+        QCOMPARE(byKind["windows-outside-block"].monitors, QStringList({"DP-3"}));
+        QVERIFY(byKind["windows-outside-block"].message.contains("block is 11-20"));
+        QVERIFY(byKind.contains("rule-disconnected"));
+        QCOMPARE(byKind["rule-disconnected"].monitors, QStringList({"DP-9"}));
+        QVERIFY(byKind["rule-disconnected"].message.contains("not connected"));
+        QVERIFY(byKind.contains("duplicate-id"));
+        QCOMPARE(byKind["duplicate-id"].ids, QList<int>({12}));
+        QCOMPARE(byKind["duplicate-id"].monitors, QStringList({"DP-3", "DP-5"}));
+        QVERIFY(byKind.contains("pinned-outside-block"));  // still there
+    }
+
+    void workspacesDescPinsAndIdenticalTwinsWithoutConnectorRows() {
+        // Identical twins listed only by identity (unplugged): the connector row decides when present.
+        auto s = realState();
+        s.rules.clear();
+        WorkspaceRule byDesc;
+        byDesc.workspace = "21";
+        byDesc.id = 21;
+        byDesc.monitor = "desc:AU Optronics 0x403D";  // resolves to eDP-1, but 21 is DP-5's
+        s.rules << byDesc;
+        const auto model = Workspaces::build(s.monitors, s.workspaces, s.rules, s.blocks);
+        QCOMPARE(model.conflicts.size(), 1);
+        QCOMPARE(model.conflicts[0].monitors, QStringList({"eDP-1", "DP-5"}));
+        // Without connector rows, two identical connected monitors are ambiguous: block unknown, no crash.
+        const auto ambiguous = Workspaces::parseBlockState(
+            "1\t\tTechnical Concepts Ltd MK27X7100 000000000000\n2\t\tTechnical Concepts Ltd MK27X7100 000000000000 #2\n");
+        const auto m2 = Workspaces::build(s.monitors, s.workspaces, {}, ambiguous);
+        QVERIFY(!m2.forMonitor("DP-3")->block.known);
+        QVERIFY(!m2.forMonitor("DP-5")->block.known);
+        // With only one of the twins connected there is no doubt: the exact identity wins.
+        const auto m3 = Workspaces::build({s.monitors[1]}, s.workspaces, {}, ambiguous);
+        QVERIFY(m3.forMonitor("DP-3")->block.known);
+        QCOMPARE(m3.forMonitor("DP-3")->block.first, 11);
+    }
+
+    void workspacesReadWithFakeHyprctl() {
+        QTemporaryDir dir;
+        QString error;
+        const auto monitors = MonitorParser::parse(fixture("ws-real-monitors.json"), &error);
+        write(dir.filePath("state"), fixture("ws-real-state.txt"));
+        const QString ok = fakeWorkspaceHyprctl(dir, fixturePath("ws-real-monitors.json"),
+                                                "cat '" + fixturePath("ws-real-workspaces.json") + "'",
+                                                "cat '" + fixturePath("ws-real-rules.json") + "'");
+        auto model = Workspaces::read(ok, monitors, dir.filePath("state"));
+        QVERIFY2(model.error.isEmpty(), qPrintable(model.error));
+        QVERIFY(model.ok);
+        QCOMPARE(model.conflicts.size(), 2);
+        QCOMPARE(model.blockStatus, BlockState::Ok);
+
+        // rules fail: workspaces still shown, error mentioned, no conflicts
+        const QString noRules = fakeWorkspaceHyprctl(dir, fixturePath("ws-real-monitors.json"),
+                                                     "cat '" + fixturePath("ws-real-workspaces.json") + "'", "exit 3");
+        model = Workspaces::read(noRules, monitors, dir.filePath("state"));
+        QVERIFY(model.ok);
+        QVERIFY(!model.error.isEmpty());
+        QVERIFY(model.conflicts.isEmpty());
+
+        // workspaces corrupt: not ok, nothing shown
+        const QString bad = fakeWorkspaceHyprctl(dir, fixturePath("ws-real-monitors.json"),
+                                                 "cat '" + fixturePath("ws-corrupt.json") + "'",
+                                                 "cat '" + fixturePath("ws-real-rules.json") + "'");
+        model = Workspaces::read(bad, monitors, dir.filePath("state"));
+        QVERIFY(!model.ok);
+        QVERIFY(!model.error.isEmpty());
+        QVERIFY(model.monitors.isEmpty());
+
+        // missing hyprctl
+        model = Workspaces::read(dir.filePath("does-not-exist"), monitors, dir.filePath("state"));
+        QVERIFY(!model.ok);
+        QVERIFY(!model.error.isEmpty());
+    }
+
+    void backendExposesWorkspaces() {
+        QTemporaryDir dir;
+        write(dir.filePath("state"), fixture("ws-real-state.txt"));
+        qputenv("ARJUY_OMARCHY_WORKSPACES", dir.filePath("state").toUtf8());
+        const QString hypr = fakeWorkspaceHyprctl(dir, fixturePath("ws-real-monitors.json"),
+                                                  "cat '" + fixturePath("ws-real-workspaces.json") + "'",
+                                                  "cat '" + fixturePath("ws-real-rules.json") + "'");
+        Backend backend(hypr, fakePacman(dir, "omarchy 4.5.0-3"), false);
+        qputenv("ARJUY_OMARCHY_WORKSPACES", QByteArray("/nonexistent/arjuy-test/monitor-workspaces"));
+        QVERIFY2(backend.error().isEmpty(), qPrintable(backend.error()));
+        QCOMPARE(backend.workspaceNotices().size(), 2);
+        QCOMPARE(backend.specialWorkspaces().size(), 1);
+        const auto dp3 = backend.monitors()[1].toMap();
+        QCOMPARE(dp3.value("name").toString(), QString("DP-3"));
+        QVERIFY(dp3.value("blockKnown").toBool());
+        QCOMPARE(dp3.value("blockFirst").toInt(), 11);
+        const auto chips = dp3.value("workspaces").toList();
+        QCOMPARE(chips.size(), 4);
+        QVERIFY(chips[0].toMap().value("guest").toBool());
+        QVERIFY(chips[2].toMap().value("active").toBool());
+        const auto json = backend.stateJson().value("workspaces").toObject();
+        QVERIFY(json.value("ok").toBool());
+        QCOMPARE(json.value("conflicts").toArray().size(), 2);
+        QCOMPARE(json.value("monitors").toArray().size(), 3);
+
+        // A hyprctl that cannot list workspaces does not break the monitors.
+        Backend plain(fakeHyprctl(dir, "cat '" + fixturePath("three-monitors.json") + "'"), fakePacman(dir, "omarchy 4.5.0-3"), false);
+        QVERIFY(plain.error().isEmpty());
+        QCOMPARE(plain.monitors().size(), 3);
+        QVERIFY(!plain.workspaceError().isEmpty());
+        QVERIFY(plain.workspaceNotices().isEmpty());
+        QVERIFY(plain.monitors()[0].toMap().value("workspaces").toList().isEmpty());
     }
 
     void bundledCatalogsAreValid() {

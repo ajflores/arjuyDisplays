@@ -13,7 +13,10 @@ QString EventWatcher::defaultSocketPath() {
 
 bool EventWatcher::isRelevant(const QByteArray &line) {
     for (const char *event : {"monitoradded>>", "monitoraddedv2>>", "monitorremoved>>",
-                              "monitorremovedv2>>", "configreloaded>>", "focusedmon>>"})
+                              "monitorremovedv2>>", "configreloaded>>", "focusedmon>>", "workspace>>",
+                              "workspacev2>>", "createworkspace>>", "createworkspacev2>>",
+                              "destroyworkspace>>", "destroyworkspacev2>>", "moveworkspace>>",
+                              "moveworkspacev2>>"})
         if (line.startsWith(event))
             return true;
     return false;

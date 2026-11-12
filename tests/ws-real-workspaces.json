@@ -1,0 +1,114 @@
+[
+ {
+  "id": 5,
+  "name": "5",
+  "monitor": "eDP-1",
+  "monitorID": 0,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "scrolling"
+ },
+ {
+  "id": 6,
+  "name": "6",
+  "monitor": "eDP-1",
+  "monitorID": 0,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "dwindle"
+ },
+ {
+  "id": 11,
+  "name": "11",
+  "monitor": "DP-3",
+  "monitorID": 1,
+  "windows": 1,
+  "hasfullscreen": false,
+  "lastwindowtitle": "Terminal",
+  "ispersistent": false,
+  "tiledLayout": "dwindle"
+ },
+ {
+  "id": 3,
+  "name": "3",
+  "monitor": "DP-5",
+  "monitorID": 2,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "scrolling"
+ },
+ {
+  "id": 21,
+  "name": "21",
+  "monitor": "DP-5",
+  "monitorID": 2,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": false,
+  "tiledLayout": "scrolling"
+ },
+ {
+  "id": 12,
+  "name": "12",
+  "monitor": "DP-3",
+  "monitorID": 1,
+  "windows": 1,
+  "hasfullscreen": false,
+  "lastwindowtitle": "Terminal",
+  "ispersistent": false,
+  "tiledLayout": "scrolling"
+ },
+ {
+  "id": 4,
+  "name": "4",
+  "monitor": "DP-5",
+  "monitorID": 2,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "dwindle"
+ },
+ {
+  "id": 1,
+  "name": "1",
+  "monitor": "DP-3",
+  "monitorID": 1,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "scrolling"
+ },
+ {
+  "id": 2,
+  "name": "2",
+  "monitor": "DP-3",
+  "monitorID": 1,
+  "windows": 0,
+  "hasfullscreen": false,
+  "lastwindowtitle": "",
+  "ispersistent": true,
+  "tiledLayout": "dwindle"
+ },
+ {
+  "id": -98,
+  "name": "special:qconsole",
+  "monitor": "DP-3",
+  "monitorID": 1,
+  "windows": 0,
+  "hasfullscreen": false,
+  "isPersistent": false,
+  "ispersistent": false,
+  "tiledLayout": "dwindle",
+  "lastwindow": "0x0",
+  "lastwindowtitle": ""
+ }
+]

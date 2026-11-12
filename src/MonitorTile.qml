@@ -25,8 +25,38 @@ Rectangle {
     radius: Math.min(4, theme.radius)
     clip: true
 
+    // Workspace tags along the bottom. They are children of the tile, so they
+    // follow it while it is dragged. What does not fit becomes "+N".
+    readonly property var wsList: monitor.workspaces || []
+    readonly property int chipRows: height >= 150 ? 3 : height >= 100 ? 2 : height >= 52 ? 1 : 0
+    readonly property var chips: {
+        const list = wsList
+        const room = (width - 10) * chipRows * 0.85
+        const est = w => 12 + 6.5 * String(w.label).length + (w.windows > 0 ? 14 : 0)
+                         + (w.persistent ? 9 : 0) + (w.guest ? 11 : 0) + 3
+        const all = list.reduce((s, w) => s + est(w), 0)
+        if (chipRows === 0 || list.length === 0)
+            return { shown: [], hidden: list.length }
+        // Most useful first: active, then with windows or a warning, then persistent, then the rest.
+        const rank = w => w.active ? 0 : w.windows > 0 ? 1 : w.guest ? 2 : w.persistent ? 3 : 4
+        const order = list.map((w, i) => i).sort((a, b) => rank(list[a]) - rank(list[b]) || list[a].id - list[b].id)
+        let budget = all <= room ? room : room - 30
+        const picked = []
+        for (const i of order) {
+            const need = est(list[i])
+            if (need > budget)
+                continue
+            budget -= need
+            picked.push(i)
+        }
+        picked.sort((a, b) => a - b)
+        return { shown: picked.map(i => list[i]), hidden: list.length - picked.length }
+    }
+
     Column {
-        anchors.centerIn: parent
+        id: labels
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.max(2, (tile.height - chipFlow.height - (chipFlow.height > 0 ? 4 : 0) - height) / 2)
         spacing: 2
         width: parent.width - 12
 
@@ -55,6 +85,28 @@ Rectangle {
             color: theme.accent
             font.pixelSize: 12
             font.bold: true
+        }
+    }
+
+    Flow {
+        id: chipFlow
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 5
+        spacing: 3
+        Repeater {
+            model: tile.chips.shown
+            delegate: WorkspaceChip { required property var modelData; ws: modelData }
+        }
+        Rectangle {
+            visible: tile.chips.hidden > 0
+            width: more.implicitWidth + 8
+            height: 18
+            radius: Math.min(4, theme.radius)
+            color: "transparent"
+            border.color: "#43434f"
+            Label { id: more; anchors.centerIn: parent; text: "+" + tile.chips.hidden; font.pixelSize: 10; opacity: 0.8 }
         }
     }
 

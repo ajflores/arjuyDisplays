@@ -1,0 +1,4 @@
+0	eDP-1	AU Optronics 0x403D
+1	DP-3	Technical Concepts Ltd MK27X7100 000000000000
+2	DP-5	Technical Concepts Ltd MK27X7100 000000000000 #2
+3		FALLBACK

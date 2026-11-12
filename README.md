@@ -12,6 +12,12 @@ A desktop app for Omarchy (Hyprland) to see and, in later phases, arrange your m
 - Layout checks run live, also while dragging: gaps between monitors (with the likely cause, for example a scaled monitor that is narrower than its pixel width), overlaps, monitors the cursor cannot reach, separate groups, and, as information only, edges that touch only partially (different heights). Gaps and overlaps are marked on the map.
 - Quitting (`Q` or closing the window) asks first when there are unsaved changes.
 
+## Workspaces (read only)
+
+Each monitor on the map shows small tags for its workspaces: id (or name) and window count. The one shown now is filled with the theme accent, a diamond marks a persistent workspace, empty ones are dimmed, and a warning sign marks a *guest* (its id is outside the monitor's Omarchy block); if they do not fit, the rest is summed up as `+N`. They move with the monitor while you drag it. The details panel lists all of them with their Omarchy block (Omarchy gives every physical monitor a block of ten: 1-10, 11-20, ...; it reads `~/.local/state/omarchy/monitor-workspaces`, read only; if it is missing or not understood the block shows as unknown).
+
+A *Workspace notes* banner explains, as information only (never an error), when a fixed workspace rule pins a workspace to a monitor other than the owner of its Omarchy block, when workspaces with windows sit outside their monitor's block, when a rule points to a monitor that is not connected, or when an id is duplicated. `special:*` workspaces are kept apart. Workspaces are never edited here; the data comes from `hyprctl -j workspaces`, `workspacerules` and `monitors`, and updates live with Hyprland's workspace events.
+
 ## Shortcuts
 
 | Key | Action |
@@ -31,7 +37,7 @@ The layout also refreshes by itself when a monitor is added or removed or the Hy
 ## Command line
 
 ```sh
-arjuy-displays check --json   # prints the monitors, versions, warnings and layout issues; exit 1 on error
+arjuy-displays check --json   # prints the monitors, versions, warnings, layout issues, workspaces and workspace notes; exit 1 on error
 arjuy-displays identify       # shows the identify banners on every screen, then exits
 ```
 

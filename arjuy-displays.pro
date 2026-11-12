@@ -17,7 +17,8 @@ HEADERS += \
     src/monitorparser.h \
     src/theme.h \
     src/translator.h \
-    src/versions.h
+    src/versions.h \
+    src/workspaces.h
 
 SOURCES += \
     src/main.cpp \
@@ -30,6 +31,7 @@ SOURCES += \
     src/monitorparser.cpp \
     src/theme.cpp \
     src/translator.cpp \
-    src/versions.cpp
+    src/versions.cpp \
+    src/workspaces.cpp
 
 RESOURCES += src/resources.qrc

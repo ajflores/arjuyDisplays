@@ -99,7 +99,10 @@ void Backend::refresh() {
                                                                                     : QString();
         const bool layoutChanged = layoutSignature(m_monitors) != layoutSignature(monitors);
         m_monitors = monitors;
-        m_dragIndex = -1;
+        // A workspace event must not cancel a drag in progress; only a changed layout does.
+        if (layoutChanged)
+            m_dragIndex = -1;
+        readWorkspaces();
 
         // Pending positions survive a refresh. Drop the ones for monitors that
         // are gone or that now already sit where they were put.
@@ -127,6 +130,17 @@ void Backend::refresh() {
         emit selectedIndexChanged();
     }
     readVersions();
+}
+
+void Backend::readWorkspaces() {
+    m_workspaces = Workspaces::read(m_hyprctl, m_monitors);
+    m_workspaceNotices.clear();
+    for (const auto &conflict : m_workspaces.conflicts)
+        m_workspaceNotices << conflict.toVariant();
+    m_specialList.clear();
+    for (const auto &w : m_workspaces.special)
+        m_specialList << w.toVariant();
+    emit workspacesChanged();
 }
 
 // ---- pending layout --------------------------------------------------------
@@ -194,6 +208,25 @@ void Backend::rebuild() {
         v["moved"] = p != QPoint(m.x, m.y);
         v["movable"] = movable(i);
         v["warn"] = flagged.contains(m.name);
+        QVariantList chips;
+        bool blockKnown = false;
+        int blockFirst = 0, blockLast = 0;
+        QString blockIdentity, special;
+        if (const auto *mw = m_workspaces.forMonitor(m.name)) {
+            for (const auto &w : mw->workspaces)
+                chips << w.toVariant();
+            blockKnown = mw->block.known;
+            blockFirst = mw->block.first;
+            blockLast = mw->block.last;
+            blockIdentity = mw->block.identity;
+            special = mw->special;
+        }
+        v["workspaces"] = chips;
+        v["blockKnown"] = blockKnown;
+        v["blockFirst"] = blockFirst;
+        v["blockLast"] = blockLast;
+        v["blockIdentity"] = blockIdentity;
+        v["specialWorkspace"] = special;
         m_monitorVariants << v;
         if (p != QPoint(m.x, m.y))
             m_pendingList << QVariantMap{{"name", m.name}, {"fromX", m.x}, {"fromY", m.y},
@@ -330,5 +363,6 @@ QJsonObject Backend::stateJson() const {
         {"warnings", QJsonArray::fromStringList(m_warnings)},
         {"monitors", monitors},
         {"issues", QJsonArray::fromVariantList(m_issues)},
+        {"workspaces", m_workspaces.toJson()},
     };
 }

@@ -48,6 +48,12 @@ Rectangle {
                 Label { text: qsTr("Reset to the real positions (or cancel a drag)") }
                 Label { text: "I"; font.bold: true }
                 Label { text: qsTr("Identify: show each monitor's name on its screen") }
+                Label { text: qsTr("Workspace tags"); font.bold: true }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: qsTr("On each monitor: id and window count. Filled with the accent: shown now. ◆: persistent. Dimmed: empty. ⚠: outside the monitor's Omarchy block. +N: more. Read only.")
+                }
                 Label { text: "Q"; font.bold: true }
                 Label { text: qsTr("Quit") }
             }

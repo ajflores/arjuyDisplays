@@ -198,6 +198,39 @@ ApplicationWindow {
                         }
                     }
 
+                    // Workspaces: notes about Omarchy's blocks (information, not errors).
+                    Rectangle {
+                        Layout.fillWidth: true
+                        visible: backend.workspaceNotices.length > 0 || backend.workspaceError !== ""
+                        implicitHeight: wsCol.implicitHeight + 16
+                        radius: Math.min(6, theme.radius)
+                        color: "#182230"
+                        border.color: "#3a5580"
+                        ColumnLayout {
+                            id: wsCol
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 2
+                            Label { text: qsTr("Workspace notes"); font.bold: true }
+                            Repeater {
+                                model: backend.workspaceNotices
+                                delegate: Label {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                    text: "• " + modelData.message
+                                }
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                visible: backend.workspaceError !== ""
+                                wrapMode: Text.Wrap
+                                color: "#ffd27a"
+                                text: backend.workspaceError
+                            }
+                        }
+                    }
+
                     // Pending (previewed) positions versus the real ones.
                     Rectangle {
                         Layout.fillWidth: true
@@ -313,6 +346,7 @@ ApplicationWindow {
                     Layout.fillHeight: true
                     monitor: backend.selected
                     issues: backend.issues
+                    workspaceNotices: backend.workspaceNotices
                 }
             }
 

@@ -13,6 +13,10 @@ struct MonitorInfo {
     double refreshRate = 0, scale = 1;
     bool disabled = false, vrr = false, focused = false;
     QStringList availableModes;
+    // Workspace shown on it now (0 and empty when hyprctl does not say), and
+    // the special workspace currently open over it, if any.
+    int activeWorkspaceId = 0;
+    QString activeWorkspaceName, specialWorkspace;
 
     // Size in layout coordinates: pixels divided by scale, with width and
     // height swapped when the monitor is rotated a quarter turn.

@@ -43,6 +43,17 @@ int runCli(int argc, char *argv[]) {
                     .arg(m.name, QString::number(m.width), QString::number(m.height),
                          QString::number(m.refreshRate, 'f', 2), QString::number(m.scale),
                          QString::number(m.x), QString::number(m.y), m.disabled ? "  (disabled)" : ""));
+        for (const auto &mw : backend.workspaceModel().monitors) {
+            QStringList ids;
+            for (const auto &w : mw.workspaces)
+                ids << QString("%1%2%3").arg(w.label(), w.active ? "*" : "", w.guest ? "!" : "");
+            out(QString("  %1 workspaces [%2]  block %3\n").arg(mw.monitor, ids.join(' '),
+                    mw.block.known ? QString("%1-%2").arg(mw.block.first).arg(mw.block.last) : "unknown"));
+        }
+        for (const auto &c : backend.workspaceModel().conflicts)
+            out("[info] " + c.message + "\n");
+        if (!backend.workspaceError().isEmpty())
+            out(backend.workspaceError() + "\n");
         for (const auto &w : backend.warnings())
             out(w + "\n");
         for (const auto &v : backend.issues()) {
