@@ -13,7 +13,7 @@ Rectangle {
 
     Rectangle {
         anchors.centerIn: parent
-        width: Math.min(parent.width - 48, 560)
+        width: Math.min(parent.width - 48, 640)
         height: col.implicitHeight + 40
         color: "#1c1c22"
         radius: theme.radius
@@ -27,35 +27,42 @@ Rectangle {
 
             Label { text: qsTr("Shortcuts"); font.pixelSize: 20; font.bold: true }
             GridLayout {
+                Layout.fillWidth: true
                 columns: 2
                 columnSpacing: 24
                 rowSpacing: 6
                 Label { text: "?"; font.bold: true }
-                Label { text: qsTr("Show or hide this help") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Show or hide this help") }
                 Label { text: "R"; font.bold: true }
-                Label { text: qsTr("Refresh the monitors") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Refresh the monitors") }
                 Label { text: "Tab, Shift+Tab"; font.bold: true }
-                Label { text: qsTr("Select another monitor") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Select another monitor") }
                 Label { text: qsTr("Drag"); font.bold: true }
-                Label { text: qsTr("Move a monitor; edges snap to the others (preview only)") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Move a monitor; edges snap to the others (preview only)") }
                 Label { text: qsTr("Arrows"); font.bold: true }
-                Label { text: qsTr("Move the selected monitor 10 px (Shift: 100 px, Ctrl: 1 px)") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Move the selected monitor 10 px (Shift: 100 px, Ctrl: 1 px)") }
                 Label { text: "Ctrl+Z"; font.bold: true }
-                Label { text: qsTr("Undo the last move") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Undo the last move") }
                 Label { text: "Ctrl+Shift+Z"; font.bold: true }
-                Label { text: qsTr("Redo") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Redo") }
                 Label { text: "Esc"; font.bold: true }
-                Label { text: qsTr("Reset to the real positions (or cancel a drag)") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Reset to the real positions (or cancel a drag)") }
                 Label { text: "I"; font.bold: true }
-                Label { text: qsTr("Identify: show each monitor's name on its screen") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Identify: show each monitor's name on its screen") }
                 Label { text: qsTr("Workspace tags"); font.bold: true }
                 Label {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     text: qsTr("On each monitor: id and window count. Filled with the accent: shown now. ◆: persistent. Dimmed: empty. ⚠: outside the monitor's Omarchy block. +N: more. Read only.")
                 }
+                Label { text: "L"; font.bold: true }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: qsTr("Change the language: Auto (follows Omarchy), English, Español. Saved for next time.")
+                }
                 Label { text: "Q"; font.bold: true }
-                Label { text: qsTr("Quit") }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: qsTr("Quit") }
             }
             Label {
                 Layout.fillWidth: true

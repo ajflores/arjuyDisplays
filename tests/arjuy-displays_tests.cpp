@@ -1,4 +1,11 @@
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QQmlComponent>
+#include <QQmlEngine>
+#include <QRegularExpression>
+#include <QSet>
 #include <QFile>
 #include <QLocalServer>
 #include <QTemporaryDir>
@@ -91,6 +98,9 @@ private slots:
     void initTestCase() {
         // Never read the real Omarchy state file from tests.
         qputenv("ARJUY_OMARCHY_WORKSPACES", QByteArray("/nonexistent/arjuy-test/monitor-workspaces"));
+        // Nor the real language settings or Omarchy's language file.
+        qputenv("ARJUY_SETTINGS", QByteArray("/nonexistent/arjuy-test/settings.json"));
+        qputenv("ARJUY_OMARCHY_LANGUAGE", QByteArray("/nonexistent/arjuy-test/language"));
     }
 
     void parsesRealisticThreeMonitors() {
@@ -616,7 +626,7 @@ private slots:
         QTemporaryDir dir;
         write(dir.path() + "/language", "es\n");
         write(dir.path() + "/es.json", R"({"Refresh": "Actualizar"})");
-        Translator translator(dir.path() + "/language", dir.path());
+        Translator translator(dir.path() + "/language", dir.path(), nullptr, dir.path() + "/settings.json");
         QCOMPARE(translator.language(), QString("es"));
         QCOMPARE(translator.translate("Main", "Refresh"), QString("Actualizar"));
         QVERIFY(translator.translate("Main", "Quit").isNull());
@@ -951,6 +961,303 @@ private slots:
         QVERIFY(!plain.workspaceError().isEmpty());
         QVERIFY(plain.workspaceNotices().isEmpty());
         QVERIFY(plain.monitors()[0].toMap().value("workspaces").toList().isEmpty());
+    }
+
+
+    // ---- language selector -------------------------------------------------
+
+    void languageSettingsPersist() {
+        QTemporaryDir dir;
+        const QString settings = dir.filePath("state/arjuy-displays/settings.json");  // folder created on demand
+        write(dir.filePath("language"), "en\n");
+        {
+            Translator t(dir.filePath("language"), ":/i18n", nullptr, settings);
+            QCOMPARE(t.mode(), QString("auto"));
+            QSignalSpy modeSpy(&t, &Translator::modeChanged), changedSpy(&t, &Translator::changed);
+            t.setMode("es");
+            QCOMPARE(t.language(), QString("es"));
+            QCOMPARE(modeSpy.count(), 1);
+            QCOMPARE(changedSpy.count(), 1);
+            t.setMode("es");  // no change, no signal
+            t.setMode("fr");  // unknown value is ignored
+            QCOMPARE(t.mode(), QString("es"));
+            QCOMPARE(modeSpy.count(), 1);
+        }
+        QFile file(settings);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto doc = QJsonDocument::fromJson(file.readAll());
+        file.close();
+        QCOMPARE(doc.object().value("language").toString(), QString("es"));
+        // Only the settings file is left behind (the temporary file was renamed).
+        QCOMPARE(QDir(QFileInfo(settings).absolutePath()).entryList(QDir::Files).size(), 1);
+
+        Translator again(dir.filePath("language"), ":/i18n", nullptr, settings);
+        QCOMPARE(again.mode(), QString("es"));
+        QCOMPARE(again.language(), QString("es"));  // forced, although Omarchy says en
+        again.setMode("auto");
+        QCOMPARE(again.language(), QString("en"));
+        QCOMPARE(Translator::readMode(settings), QString("auto"));
+    }
+
+    void languageSettingsToleratesAbsentOrCorruptFiles() {
+        QTemporaryDir dir;
+        const QString settings = dir.filePath("settings.json");
+        QCOMPARE(Translator::readMode(settings), QString("auto"));  // absent
+        for (const char *bad : {"", "not json", "[]", "{}", R"({"language": "fr"})", R"({"language": 5})",
+                                R"({"language": null})", "{\"language\": \"es\""}) {
+            write(settings, bad);
+            QCOMPARE(Translator::readMode(settings), QString("auto"));
+            Translator t(dir.filePath("language"), ":/i18n", nullptr, settings);
+            QCOMPARE(t.mode(), QString("auto"));
+        }
+        // A corrupt file is replaced by a valid one on the next choice.
+        write(settings, "garbage");
+        Translator t(dir.filePath("language"), ":/i18n", nullptr, settings);
+        t.setMode("en");
+        QCOMPARE(Translator::readMode(settings), QString("en"));
+        // Other keys in the file survive.
+        write(settings, R"({"language": "es", "other": 1})");
+        QVERIFY(Translator::writeMode(settings, "en"));
+        QFile file(settings);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto object = QJsonDocument::fromJson(file.readAll()).object();
+        QCOMPARE(object.value("other").toInt(), 1);
+        QCOMPARE(object.value("language").toString(), QString("en"));
+        QVERIFY(!Translator::writeMode(settings, "klingon"));
+    }
+
+    void languageAutoFollowsOmarchyFile() {
+        QTemporaryDir dir;
+        const QString language = dir.filePath("language"), settings = dir.filePath("settings.json");
+        write(language, "es\n");
+        Translator t(language, ":/i18n", nullptr, settings);
+        QCOMPARE(t.mode(), QString("auto"));
+        QCOMPARE(t.language(), QString("es"));
+        QCOMPARE(t.translate("Main", "Refresh"), QString("Actualizar"));
+        // Omarchy changes its language: Auto follows, live.
+        write(language, "en\n");
+        QTRY_COMPARE_WITH_TIMEOUT(t.language(), QString("en"), 3000);
+        QVERIFY(t.translate("Main", "Refresh").isNull());
+        // A forced language ignores the Omarchy file.
+        t.setMode("es");
+        write(language, "de\n");
+        QTest::qWait(300);
+        QCOMPARE(t.language(), QString("es"));
+        // No Omarchy language file at all: Auto is English.
+        t.setMode("auto");
+        QFile::remove(language);
+        QTRY_COMPARE_WITH_TIMEOUT(t.language(), QString("en"), 3000);
+    }
+
+    void languageEnvironmentOverridesPaths() {
+        QCOMPARE(Translator::defaultSettingsPath(), QString("/nonexistent/arjuy-test/settings.json"));
+        QCOMPARE(Translator::defaultLanguageFile(), QString("/nonexistent/arjuy-test/language"));
+    }
+
+    void languageTransientModeIsNotSaved() {
+        QTemporaryDir dir;
+        const QString settings = dir.filePath("settings.json");
+        write(dir.filePath("language"), "en\n");
+        Translator t(dir.filePath("language"), ":/i18n", nullptr, settings);
+        t.setTransientMode("es");
+        QCOMPARE(t.language(), QString("es"));
+        t.cycleMode();  // later choices of this run are not saved either
+        QVERIFY(!QFile::exists(settings));
+    }
+
+    void languageCyclesAutoEnglishSpanish() {
+        QTemporaryDir dir;
+        write(dir.filePath("language"), "en\n");
+        Translator t(dir.filePath("language"), ":/i18n", nullptr, dir.filePath("settings.json"));
+        QStringList seen{t.mode()};
+        for (int i = 0; i < 3; ++i) {
+            t.cycleMode();
+            seen << t.mode();
+        }
+        QCOMPARE(seen, (QStringList{"auto", "en", "es", "auto"}));
+    }
+
+    void languageChangesBackendMessagesLive() {
+        QTemporaryDir dir;
+        write(dir.filePath("language"), "en\n");
+        const QString json = fixturePath("three-monitors.json");
+        Translator t(dir.filePath("language"), ":/i18n", nullptr, dir.filePath("settings.json"));
+        QCoreApplication::installTranslator(&t);
+        // Untested Omarchy version => a warning built in C++.
+        Backend backend(fakeHyprctl(dir, "cat '" + json + "'"), fakePacman(dir, "omarchy 9.0.0-1"), false);
+        connect(&t, &Translator::changed, &backend, &Backend::retranslate);
+        QSignalSpy spy(&backend, &Backend::warningsChanged);
+        QVERIFY(backend.warnings().join("\n").contains("has not been tested"));
+
+        t.setMode("es");
+        QVERIFY(spy.count() >= 1);
+        QVERIFY2(backend.warnings().join("\n").contains("no fue probado"), qPrintable(backend.warnings().join("\n")));
+        QVERIFY(!backend.warnings().join("\n").contains("has not been tested"));
+        t.setMode("en");
+        QVERIFY(backend.warnings().join("\n").contains("has not been tested"));
+
+        // The error shown for a bad hyprctl answer follows too.
+        Backend broken(fakeHyprctl(dir, "echo 'not json at all'"), fakePacman(dir, "omarchy 4.5.0-3"), false);
+        connect(&t, &Translator::changed, &broken, &Backend::retranslate);
+        QVERIFY(broken.error().contains("not valid JSON"));
+        t.setMode("es");
+        QVERIFY2(broken.error().contains("no es JSON válido"), qPrintable(broken.error()));
+        QCoreApplication::removeTranslator(&t);
+    }
+
+    void languageChangesQmlTextLive() {
+        QTemporaryDir dir;
+        write(dir.filePath("language"), "en\n");
+        Translator t(dir.filePath("language"), ":/i18n", nullptr, dir.filePath("settings.json"));
+        QCoreApplication::installTranslator(&t);
+        QQmlEngine engine;
+        connect(&t, &Translator::changed, &engine, &QQmlEngine::retranslate);
+        QQmlComponent component(&engine);
+        component.setData("import QtQml\nQtObject { property string text: qsTr(\"Refresh\")\n"
+                          "property string plural: qsTr(\"Available modes (%n)\", \"\", 3) }", QUrl());
+        QScopedPointer<QObject> object(component.create());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        QCOMPARE(object->property("text").toString(), QString("Refresh"));
+        QCOMPARE(object->property("plural").toString(), QString("Available modes (3)"));
+        t.setMode("es");
+        QCOMPARE(object->property("text").toString(), QString("Actualizar"));
+        QCOMPARE(object->property("plural").toString(), QString("Modos disponibles (3)"));
+        t.setMode("en");
+        QCOMPARE(object->property("text").toString(), QString("Refresh"));
+        QCoreApplication::removeTranslator(&t);
+    }
+
+    // ---- string audit ------------------------------------------------------
+
+    // Every literal passed to qsTr(), tr() or translate() in src/.
+    static QSet<QString> sourceStrings(QStringList *whereOut = nullptr) {
+        QSet<QString> found;
+        const QDir src(QString(SOURCE_DIR) + "/../src");
+        static const QRegularExpression call(R"((?<![A-Za-z0-9_])(qsTr|tr|translate)\s*\()");
+        for (const QString &name : src.entryList({"*.cpp", "*.h", "*.qml"}, QDir::Files)) {
+            QFile file(src.filePath(name));
+            if (!file.open(QIODevice::ReadOnly))
+                continue;
+            const QString text = QString::fromUtf8(file.readAll());
+            auto skipSpace = [&](int &i) { while (i < text.size() && text[i].isSpace()) ++i; };
+            // Reads adjacent "a" "b" literals (C++ concatenation) starting at i.
+            auto literals = [&](int &i, QString *out) {
+                bool any = false;
+                skipSpace(i);
+                while (i < text.size() && (text[i] == '"' || (text[i] == '\'' && name.endsWith(".qml")))) {
+                    const QChar quote = text[i++];
+                    for (; i < text.size() && text[i] != quote; ++i) {
+                        if (text[i] != '\\') { *out += text[i]; continue; }
+                        const QChar e = text[++i];
+                        if (e == 'n') *out += '\n';
+                        else if (e == 't') *out += '\t';
+                        else if (e == 'u') { *out += QChar(text.mid(i + 1, 4).toUShort(nullptr, 16)); i += 4; }
+                        else *out += e;
+                    }
+                    ++i;
+                    any = true;
+                    skipSpace(i);
+                }
+                return any;
+            };
+            auto it = call.globalMatch(text);
+            while (it.hasNext()) {
+                const auto m = it.next();
+                // Ignore examples inside comments (// line and /* block */).
+                const int lineStart = text.lastIndexOf('\n', m.capturedStart()) + 1;
+                const QString before = text.left(m.capturedStart());
+                const QString linePrefix = text.mid(lineStart, m.capturedStart() - lineStart);
+                const int slashes = linePrefix.indexOf("//");
+                if ((slashes >= 0 && linePrefix.left(slashes).count('"') % 2 == 0)
+                    || before.lastIndexOf("/*") > before.lastIndexOf("*/"))
+                    continue;
+                int i = m.capturedEnd();
+                skipSpace(i);
+                if (m.captured(1) == "translate") {  // translate("Context", "text")
+                    QString context;
+                    if (!literals(i, &context)) continue;
+                    skipSpace(i);
+                    if (i >= text.size() || text[i] != ',') continue;
+                    ++i;
+                }
+                QString source;
+                if (literals(i, &source) && !source.isEmpty()) {
+                    found.insert(source);
+                    if (whereOut) whereOut->append(source + "  [" + name + "]");
+                }
+            }
+        }
+        return found;
+    }
+    static QJsonObject catalog(const char *code) {
+        QFile file(QString(SOURCE_DIR) + "/../src/i18n/" + code + ".json");
+        return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
+    }
+    static QSet<QString> placeholders(const QString &text) {
+        QSet<QString> set;
+        static const QRegularExpression re("%(\\d+|n)");
+        auto it = re.globalMatch(text);
+        while (it.hasNext()) set.insert(it.next().captured(0));
+        return set;
+    }
+
+    void everySourceStringIsTranslatedToSpanish() {
+        const QSet<QString> sources = sourceStrings();
+        QVERIFY2(sources.size() > 100, "the string extractor found too few strings");
+        const QJsonObject es = catalog("es"), en = catalog("en");
+        QStringList problems;
+        for (const QString &source : sources) {
+            const QJsonValue value = es.value(source);
+            const bool counted = source.contains("%n");
+            QStringList forms;
+            if (counted) {
+                if (!value.isObject() || value.toObject().value("one").toString().isEmpty()
+                    || value.toObject().value("other").toString().isEmpty()) {
+                    problems << "es.json needs one/other forms for: " + source;
+                    continue;
+                }
+                const auto o = en.value(source).toObject();
+                if (o.value("one").toString().isEmpty() || o.value("other").toString().isEmpty())
+                    problems << "en.json needs one/other forms for: " + source;
+                for (const QString &key : value.toObject().keys())
+                    forms << value.toObject().value(key).toString();
+            } else {
+                if (!value.isString() || value.toString().isEmpty()) {
+                    problems << "missing in es.json: " + source;
+                    continue;
+                }
+                forms << value.toString();
+            }
+            QSet<QString> expected = placeholders(source);
+            if (counted) expected.remove("%n");
+            for (const QString &form : forms) {
+                QSet<QString> got = placeholders(form);
+                got.remove("%n");
+                if (got != expected)
+                    problems << "placeholders differ in es.json for: " + source;
+            }
+        }
+        QVERIFY2(problems.isEmpty(), qPrintable("\n" + problems.join("\n")));
+    }
+
+    void catalogsHaveNoOrphanEntries() {
+        const QSet<QString> sources = sourceStrings();
+        QStringList orphans;
+        for (const char *code : {"es", "en"}) {
+            const QJsonObject object = catalog(code);
+            QVERIFY2(!object.isEmpty(), code);
+            for (const QString &key : object.keys())
+                if (!sources.contains(key))
+                    orphans << QString("%1.json has an entry no source uses: %2").arg(code, key);
+        }
+        QVERIFY2(orphans.isEmpty(), qPrintable("\n" + orphans.join("\n")));
+    }
+
+    void languageSelectorStringsAreTranslated() {
+        // Spot check of the strings added with the selector.
+        const QJsonObject es = catalog("es");
+        QCOMPARE(es.value("Language: %1").toString(), QString("Idioma: %1"));
+        QVERIFY(es.contains("Auto"));
     }
 
     void bundledCatalogsAreValid() {

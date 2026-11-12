@@ -30,14 +30,22 @@ A *Workspace notes* banner explains, as information only (never an error), when 
 | Arrows | Move the selected monitor 10 px (`Shift` 100 px, `Ctrl` 1 px) |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo a move |
 | `Esc` | Reset to the real positions (or cancel a drag) |
+| `L` | Change the interface language: Auto, English, Español (live, saved) |
 | `Q` | Quit (asks if there are unsaved changes) |
 
 The layout also refreshes by itself when a monitor is added or removed or the Hyprland config reloads.
+
+## Language
+
+The top bar has a **Language** button (menu: Auto, English, Español); `L` cycles through them. The change is live: every text, including warnings, workspace notes, errors and the `check` output, switches without restarting. *Auto* (the default) follows Omarchy's language (`~/.config/omarchy/language`, read only, followed live); English and Español force it. The choice is saved in `~/.local/state/arjuy-displays/settings.json` (written atomically; a missing or corrupt file means Auto). Omarchy's own language setting is never touched.
+
+Catalogs are `src/i18n/en.json` (plural forms) and `src/i18n/es.json`; the test suite fails if any `qsTr()`/`tr()` string has no Spanish entry, if a placeholder differs, or if a catalog has an entry nothing uses. Set `ARJUY_SETTINGS` / `ARJUY_OMARCHY_LANGUAGE` to use other files (the tests do).
 
 ## Command line
 
 ```sh
 arjuy-displays check --json   # prints the monitors, versions, warnings, layout issues, workspaces and workspace notes; exit 1 on error
+arjuy-displays open --lang es # forces the language for this run only (auto|en|es); nothing is saved. Works with check too
 arjuy-displays identify       # shows the identify banners on every screen, then exits
 ```
 

@@ -62,6 +62,15 @@ Identifier::Identifier(const QList<MonitorInfo> *monitors, QObject *parent) : QO
 
 Identifier::~Identifier() { clearWindows(); }
 
+QString Identifier::warningText() const {
+    return m_unmatched.isEmpty()
+               ? QString()
+               : tr("Could not match %1 with a Hyprland monitor; its banner shows the name Qt reports.")
+                     .arg(m_unmatched.join(", "));
+}
+
+void Identifier::retranslate() { setWarning(warningText()); }
+
 void Identifier::setWarning(const QString &warning) {
     if (warning == m_warning)
         return;
@@ -162,8 +171,6 @@ void Identifier::rebuild() {
                             << "\n";
         m_windows << view;
     }
-    setWarning(unmatched.isEmpty()
-                   ? QString()
-                   : tr("Could not match %1 with a Hyprland monitor; its banner shows the name Qt reports.")
-                         .arg(unmatched.join(", ")));
+    m_unmatched = unmatched;
+    setWarning(warningText());
 }

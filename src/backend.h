@@ -82,6 +82,8 @@ public:
     Q_INVOKABLE void dismissNotice();
 
     Q_INVOKABLE void refresh();
+    // Rebuilds every message made in C++ after a language change.
+    void retranslate();
     Q_INVOKABLE void selectNext(int step);
     // The full state as JSON, used by `arjuy-displays check --json`.
     QJsonObject stateJson() const;
@@ -99,6 +101,7 @@ signals:
 private:
     using PendingMap = QMap<QString, QPoint>;
 
+    static QString layoutChangedNotice();
     void readVersions();
     void rebuild();
     void readWorkspaces();

@@ -13,6 +13,7 @@ C++ + Qt Quick (QML), qmake6 + make, un solo binario, sigue el tema de Omarchy, 
 
 ## Reglas de seguridad (obligatorias)
 - Solo toca `~/.config/hypr/monitors.lua` y sus backups en `~/.local/state/arjuy-displays/`. Nunca `shell.json` ni archivos en /usr/share/omarchy.
+- La app también escribe `~/.local/state/arjuy-displays/settings.json` (su propia carpeta de estado) con la elección de idioma (`{"language": "auto"|"en"|"es"}`): escritura atómica (archivo temporal + rename), tolerante a ausente/corrupto (=> Auto). Nunca toca el idioma de Omarchy (`~/.config/omarchy/language`, solo lectura). Rutas sobreescribibles por entorno para tests: `ARJUY_SETTINGS`, `ARJUY_OMARCHY_LANGUAGE`; los tests usan siempre directorios temporales. `--lang auto|en|es` fuerza el idioma de esa ejecución sin guardar.
 - Al aplicar: 1) backup con fecha y hora (más una copia "original" que se guarda una sola vez y no se pisa), 2) validación previa del formato de monitors.lua y de la respuesta de hyprctl; si algo no cuadra, avisar y NO escribir (modo solo lectura), 3) reescribir solo las entradas `hl.monitor(...)` y preservar todo lo demás (p. ej. workspaces fijos por monitor), 4) recargar Hyprland y revisar `hyprctl configerrors`, 5) cuenta regresiva de 15 s para "Mantener"; si no se confirma, revertir al backup anterior. La cuenta corre dentro de la app.
 - Botón "Restaurar original" antes de desinstalar. Desinstalar deja monitors.lua como esté.
 - Modo solo lectura y aviso si la versión de Hyprland/Omarchy no fue probada.

@@ -49,6 +49,8 @@ public:
     Q_INVOKABLE void show(const QString &highlight = {}, int durationMs = 3000);
     Q_INVOKABLE void hide();
     Q_INVOKABLE void setHighlight(const QString &highlight);
+    // The language changed: the warning is worded again.
+    void retranslate();
     int windowCount() const { return m_windows.size(); }
 
 signals:
@@ -58,11 +60,13 @@ signals:
 private:
     void rebuild();
     void clearWindows();
+    QString warningText() const;
     void setWarning(const QString &warning);
 
     const QList<MonitorInfo> *m_monitors;
     QList<QPointer<QQuickView>> m_windows;
     QTimer m_timer;
+    QStringList m_unmatched;
     QString m_accent = "#FFD60A", m_highlight, m_warning;
     bool m_active = false;
 };

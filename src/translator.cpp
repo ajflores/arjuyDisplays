@@ -8,17 +8,88 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QSaveFile>
+#include <QStandardPaths>
 
-Translator::Translator(const QString &languageFile, const QString &catalogDirectory, QObject *parent)
+QString Translator::defaultSettingsPath() {
+    const QString env = qEnvironmentVariable("ARJUY_SETTINGS");
+    return env.isEmpty() ? QDir::homePath() + "/.local/state/arjuy-displays/settings.json" : env;
+}
+
+QString Translator::defaultLanguageFile() {
+    const QString env = qEnvironmentVariable("ARJUY_OMARCHY_LANGUAGE");
+    return env.isEmpty() ? QDir::homePath() + "/.config/omarchy/language" : env;
+}
+
+QStringList Translator::modes() { return {"auto", "en", "es"}; }
+
+QString Translator::readMode(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return "auto";
+    QJsonParseError error;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.read(64 * 1024), &error);
+    if (error.error != QJsonParseError::NoError || !doc.isObject())
+        return "auto";
+    const QJsonValue value = doc.object().value("language");
+    return value.isString() && modes().contains(value.toString()) ? value.toString() : "auto";
+}
+
+bool Translator::writeMode(const QString &path, const QString &mode) {
+    if (!modes().contains(mode))
+        return false;
+    if (!QDir().mkpath(QFileInfo(path).absolutePath()))
+        return false;
+    // Keep any other (future) keys; only "language" is ours to set.
+    QJsonObject object;
+    QFile existing(path);
+    if (existing.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(existing.read(64 * 1024));
+        if (doc.isObject())
+            object = doc.object();
+        existing.close();
+    }
+    object.insert("language", mode);
+    QSaveFile file(path);  // temporary file in the same folder, renamed on commit
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
+    return file.commit();
+}
+
+Translator::Translator(const QString &languageFile, const QString &catalogDirectory, QObject *parent,
+                       const QString &settingsFile)
     : QTranslator(parent),
-      m_languageFile(languageFile.isEmpty() ? QDir::homePath() + "/.config/omarchy/language" : languageFile),
-      m_catalogDirectory(catalogDirectory) {
+      m_languageFile(languageFile.isEmpty() ? defaultLanguageFile() : languageFile),
+      m_catalogDirectory(catalogDirectory),
+      m_settingsFile(settingsFile.isEmpty() ? defaultSettingsPath() : settingsFile),
+      m_mode(readMode(m_settingsFile)) {
     m_debounce.setSingleShot(true);
     m_debounce.setInterval(80);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this] { m_debounce.start(); });
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, [this] { m_debounce.start(); });
     connect(&m_debounce, &QTimer::timeout, this, &Translator::reload);
     reload();
+}
+
+void Translator::setMode(const QString &mode) {
+    if (!modes().contains(mode) || mode == m_mode)
+        return;
+    m_mode = mode;
+    if (m_persist && !writeMode(m_settingsFile, mode))
+        qWarning("arjuy-displays: could not save the language choice to %s", qPrintable(m_settingsFile));
+    emit modeChanged();
+    reload();
+}
+
+void Translator::cycleMode() {
+    const QStringList all = modes();
+    setMode(all[(all.indexOf(m_mode) + 1) % all.size()]);
+}
+
+void Translator::setTransientMode(const QString &mode) {
+    m_persist = false;
+    setMode(mode);
 }
 
 // One registry code on the first line; anything else, or no file, is English.
@@ -106,7 +177,7 @@ void Translator::reload() {
         m_watcher.addPath(m_languageFile);
 
     // Catalogs are compiled in, so only a different language needs a reload.
-    const QString language = readLanguage(m_languageFile);
+    const QString language = m_mode == "auto" ? readLanguage(m_languageFile) : m_mode;
     if (language == m_language)
         return;
 

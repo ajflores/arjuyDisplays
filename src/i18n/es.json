@@ -62,7 +62,6 @@
   "Monitor %1 reports an invalid transform.": "El monitor %1 informa una transformación inválida.",
   "Monitor %1 has an invalid list of modes.": "El monitor %1 tiene una lista de modos inválida.",
   "hyprctl reported no monitors.": "hyprctl no informó ningún monitor.",
-  "Usage: arjuy-displays [open | identify | check [--json] | --version | --help]\n": "Uso: arjuy-displays [open | identify | check [--json] | --version | --help]\n",
   "Unknown command: %1\n": "Comando desconocido: %1\n",
   "Identify": "Identificar",
   "Identify: show each monitor's name on its screen": "Identificar: mostrar el nombre de cada monitor en su pantalla",
@@ -123,5 +122,16 @@
   "Workspaces %1 are pinned to %2 by workspace rules but belong to %3's block (%4-%5) in Omarchy.": "Los espacios %1 están fijados a %2 por reglas, pero pertenecen al bloque de %3 (%4-%5) en Omarchy.",
   "Workspace %1 is on %2 and has windows (%3), but %2's Omarchy block is %4-%5.": "El espacio %1 está en %2 y tiene ventanas (%3), pero el bloque de Omarchy de %2 es %4-%5.",
   "Workspace id %1 appears more than once in Hyprland's list (monitors: %2).": "El id de espacio %1 aparece más de una vez en la lista de Hyprland (monitores: %2).",
-  "fixed by a rule": "fijado por una regla"
+  "fixed by a rule": "fijado por una regla",
+  "Usage: arjuy-displays [open | identify | check [--json] | --version | --help] [--lang auto|en|es]\n": "Uso: arjuy-displays [open | identify | check [--json] | --version | --help] [--lang auto|en|es]\n",
+  "Unknown language: %1 (use auto, en or es)": "Idioma desconocido: %1 (usa auto, en o es)",
+  "Auto": "Auto",
+  "Language: %1": "Idioma: %1",
+  "Change the language: Auto (follows Omarchy), English, Español. Saved for next time.": "Cambiar el idioma: Auto (sigue a Omarchy), English, Español. Se guarda para la próxima vez.",
+  "%1  %2x%3@%4Hz  scale %5  at %6,%7%8\n": "%1  %2x%3@%4Hz  escala %5  en %6,%7%8\n",
+  "  (disabled)": "  (deshabilitado)",
+  "  %1 workspaces [%2]  block %3\n": "  %1 espacios de trabajo [%2]  bloque %3\n",
+  "unknown": "desconocido",
+  "info": "info",
+  "warning": "aviso"
 }

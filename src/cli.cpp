@@ -7,6 +7,8 @@
 
 #include "backend.h"
 
+static QString tr(const char *text) { return QCoreApplication::translate("Cli", text); }
+
 static void out(const QString &text, FILE *stream = stdout) {
     fputs(text.toUtf8().constData(), stream);
 }
@@ -18,7 +20,7 @@ int runCli(int argc, char *argv[]) {
     if (args.isEmpty() || args.first() == "open")
         return -1;
 
-    const QString usage = QCoreApplication::translate("Cli", "Usage: arjuy-displays [open | identify | check [--json] | --version | --help]\n");
+    const QString usage = tr("Usage: arjuy-displays [open | identify | check [--json] | --version | --help] [--lang auto|en|es]\n");
     if (args.first() == "--help" || args.first() == "-h") {
         out(usage);
         return 0;
@@ -28,7 +30,7 @@ int runCli(int argc, char *argv[]) {
         return 0;
     }
     if (args.first() != "check") {
-        out(QCoreApplication::translate("Cli", "Unknown command: %1\n").arg(args.first()), stderr);
+        out(tr("Unknown command: %1\n").arg(args.first()), stderr);
         out(usage, stderr);
         return 1;
     }
@@ -39,26 +41,26 @@ int runCli(int argc, char *argv[]) {
         out(QString::fromUtf8(QJsonDocument(backend.stateJson()).toJson(QJsonDocument::Indented)));
     } else {
         for (const auto &m : backend.monitorList())
-            out(QString("%1  %2x%3@%4Hz  scale %5  at %6,%7%8\n")
+            out(tr("%1  %2x%3@%4Hz  scale %5  at %6,%7%8\n")
                     .arg(m.name, QString::number(m.width), QString::number(m.height),
                          QString::number(m.refreshRate, 'f', 2), QString::number(m.scale),
-                         QString::number(m.x), QString::number(m.y), m.disabled ? "  (disabled)" : ""));
+                         QString::number(m.x), QString::number(m.y), m.disabled ? tr("  (disabled)") : QString()));
         for (const auto &mw : backend.workspaceModel().monitors) {
             QStringList ids;
             for (const auto &w : mw.workspaces)
                 ids << QString("%1%2%3").arg(w.label(), w.active ? "*" : "", w.guest ? "!" : "");
-            out(QString("  %1 workspaces [%2]  block %3\n").arg(mw.monitor, ids.join(' '),
-                    mw.block.known ? QString("%1-%2").arg(mw.block.first).arg(mw.block.last) : "unknown"));
+            out(tr("  %1 workspaces [%2]  block %3\n").arg(mw.monitor, ids.join(' '),
+                    mw.block.known ? QString("%1-%2").arg(mw.block.first).arg(mw.block.last) : tr("unknown")));
         }
         for (const auto &c : backend.workspaceModel().conflicts)
-            out("[info] " + c.message + "\n");
+            out("[" + tr("info") + "] " + c.message + "\n");
         if (!backend.workspaceError().isEmpty())
             out(backend.workspaceError() + "\n");
         for (const auto &w : backend.warnings())
             out(w + "\n");
         for (const auto &v : backend.issues()) {
             const auto issue = v.toMap();
-            out(QString("[%1] %2 %3\n").arg(issue["severity"].toString(), issue["message"].toString(),
+            out(QString("[%1] %2 %3\n").arg(issue["severity"].toString() == "warning" ? tr("warning") : tr("info"), issue["message"].toString(),
                                             issue["hint"].toString()));
         }
     }

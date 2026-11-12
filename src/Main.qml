@@ -34,6 +34,12 @@ ApplicationWindow {
         return qsTr("%1: %2, %3 → %4, %5").arg(p.name).arg(p.fromX).arg(p.fromY).arg(p.toX).arg(p.toY)
     }
 
+    // L cycles the interface language: Auto, English, Español (saved).
+    Shortcut { sequence: "L"; context: Qt.ApplicationShortcut; enabled: !quitDialog.visible; onActivated: translator.cycleMode() }
+    function modeName(mode) {
+        return mode === "en" ? "English" : mode === "es" ? "Español" : qsTr("Auto")
+    }
+
     Shortcut {
         sequence: "Escape"; context: Qt.ApplicationShortcut
         enabled: win.helpVisible || identifier.active || backend.hasPending || map.dragging
@@ -302,6 +308,20 @@ ApplicationWindow {
                     flat: true
                     focusPolicy: Qt.NoFocus
                     onClicked: backend.refresh()
+                }
+                Button {
+                    id: languageButton
+                    text: qsTr("Language: %1").arg(win.modeName(translator.mode))
+                    flat: true
+                    focusPolicy: Qt.NoFocus
+                    onClicked: languageMenu.open()
+                    Menu {
+                        id: languageMenu
+                        y: languageButton.height
+                        MenuItem { text: (translator.mode === "auto" ? "✓  " : "     ") + win.modeName("auto"); onTriggered: translator.mode = "auto" }
+                        MenuItem { text: (translator.mode === "en" ? "✓  " : "     ") + win.modeName("en"); onTriggered: translator.mode = "en" }
+                        MenuItem { text: (translator.mode === "es" ? "✓  " : "     ") + win.modeName("es"); onTriggered: translator.mode = "es" }
+                    }
                 }
                 Button {
                     text: "?"

@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <cstdio>
+#include <vector>
 
 #include "backend.h"
 #include "cli.h"
@@ -16,6 +17,23 @@
 #include "translator.h"
 
 int main(int argc, char *argv[]) {
+    // `--lang auto|en|es` (or `--lang=es`) forces the language of this run only;
+    // it is removed from the arguments and nothing is saved.
+    std::vector<char *> args;
+    QString forcedLanguage;
+    for (int i = 0; i < argc; ++i) {
+        const QByteArray arg(argv[i]);
+        if (i > 0 && arg == "--lang" && i + 1 < argc)
+            forcedLanguage = QString::fromLocal8Bit(argv[++i]);
+        else if (i > 0 && arg.startsWith("--lang="))
+            forcedLanguage = QString::fromLocal8Bit(arg.mid(7));
+        else
+            args.push_back(argv[i]);
+    }
+    args.push_back(nullptr);
+    argc = int(args.size()) - 1;
+    argv = args.data();
+
     // Commands without a window must not need a display.
     const QByteArray command = argc > 1 ? QByteArray(argv[1]) : QByteArray("open");
     const bool windowed = command == "open" || command == "identify";
@@ -27,6 +45,13 @@ int main(int argc, char *argv[]) {
 
     Translator translator;
     app.installTranslator(&translator);
+    if (!forcedLanguage.isEmpty()) {
+        if (!Translator::modes().contains(forcedLanguage)) {
+            fprintf(stderr, "%s\n", qPrintable(QCoreApplication::translate("Cli", "Unknown language: %1 (use auto, en or es)").arg(forcedLanguage)));
+            return 1;
+        }
+        translator.setTransientMode(forcedLanguage);
+    }
 
     if (command == "identify") {
         Theme theme;
@@ -37,6 +62,8 @@ int main(int argc, char *argv[]) {
         }
         Identifier identifier(&backend.monitorList());
         identifier.setAccent(theme.accent());
+        QObject::connect(&translator, &Translator::changed, &backend, &Backend::retranslate);
+        QObject::connect(&translator, &Translator::changed, &identifier, &Identifier::retranslate);
         QObject::connect(&identifier, &Identifier::activeChanged, &app, [&] {
             if (!identifier.active())
                 app.quit();
@@ -60,6 +87,9 @@ int main(int argc, char *argv[]) {
     Identifier identifier(&backend.monitorList());
     identifier.setAccent(theme.accent());
     QObject::connect(&theme, &Theme::changed, &identifier, [&] { identifier.setAccent(theme.accent()); });
+
+    QObject::connect(&translator, &Translator::changed, &backend, &Backend::retranslate);
+    QObject::connect(&translator, &Translator::changed, &identifier, &Identifier::retranslate);
 
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);

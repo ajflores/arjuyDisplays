@@ -39,6 +39,19 @@ void Backend::selectNext(int step) {
     setSelectedIndex(((m_selected < 0 ? 0 : m_selected) + step % n + n) % n);
 }
 
+QString Backend::layoutChangedNotice() {
+    return tr("The monitor layout changed while you had unsaved changes. Your pending positions were kept; please check them.");
+}
+
+// The language changed: every message built here (version warnings, errors,
+// layout and workspace notes, the pending notice) is made again in the new one.
+void Backend::retranslate() {
+    if (!m_notice.isEmpty())
+        m_notice = layoutChangedNotice();
+    refresh();
+    emit pendingChanged();
+}
+
 void Backend::readVersions() {
     QString hypr, omarchy;
     const auto v = Hyprctl::run(m_hyprctl, {"-j", "version"});
@@ -114,7 +127,7 @@ void Backend::refresh() {
         const bool hadPending = !m_pending.isEmpty();
         m_pending = kept;
         if (hadPending && layoutChanged && !m_pending.isEmpty())
-            m_notice = tr("The monitor layout changed while you had unsaved changes. Your pending positions were kept; please check them.");
+            m_notice = layoutChangedNotice();
         else if (m_pending.isEmpty())
             m_notice.clear();
 
