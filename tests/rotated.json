@@ -1,0 +1,24 @@
+[
+ {
+  "id": 0,
+  "name": "DP-6",
+  "description": "Portrait",
+  "make": "Acme",
+  "model": "M1",
+  "serial": "S1",
+  "width": 1920,
+  "height": 1080,
+  "refreshRate": 60.0,
+  "x": 0,
+  "y": 0,
+  "scale": 1,
+  "transform": 1,
+  "focused": false,
+  "vrr": false,
+  "disabled": false,
+  "mirrorOf": "none",
+  "availableModes": [
+   "1920x1080@60.00Hz"
+  ]
+ }
+]

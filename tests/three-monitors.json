@@ -1,0 +1,76 @@
+[
+ {
+  "id": 0,
+  "name": "eDP-1",
+  "description": "AU Optronics 0x403D",
+  "make": "Acme",
+  "model": "M1",
+  "serial": "S1",
+  "width": 1920,
+  "height": 1080,
+  "refreshRate": 60.0,
+  "x": 3840,
+  "y": 0,
+  "scale": 1.25,
+  "transform": 0,
+  "focused": false,
+  "vrr": false,
+  "disabled": false,
+  "mirrorOf": "none",
+  "availableModes": [
+   "1920x1080@60.05Hz"
+  ]
+ },
+ {
+  "id": 0,
+  "name": "DP-3",
+  "description": "Technical Concepts MK27X7100",
+  "make": "Acme",
+  "model": "M1",
+  "serial": "S1",
+  "width": 1920,
+  "height": 1080,
+  "refreshRate": 60.0,
+  "x": 0,
+  "y": 0,
+  "scale": 1.25,
+  "transform": 0,
+  "focused": true,
+  "vrr": false,
+  "disabled": false,
+  "mirrorOf": "none",
+  "availableModes": [
+   "1920x1080@60.00Hz",
+   "1920x1080@74.97Hz",
+   "1920x1080@60.00Hz",
+   "1680x1050@59.88Hz",
+   "1920x1080@74.97Hz"
+  ]
+ },
+ {
+  "id": 0,
+  "name": "DP-5",
+  "description": "Technical Concepts MK27X7100",
+  "make": "Acme",
+  "model": "M1",
+  "serial": "S1",
+  "width": 1920,
+  "height": 1080,
+  "refreshRate": 60.0,
+  "x": 1920,
+  "y": 0,
+  "scale": 1,
+  "transform": 0,
+  "focused": false,
+  "vrr": false,
+  "disabled": false,
+  "mirrorOf": "none",
+  "availableModes": [
+   "1920x1080@60.00Hz",
+   "1920x1080@74.97Hz",
+   "1920x1080@60.00Hz",
+   "1680x1050@59.88Hz",
+   "1920x1080@74.97Hz"
+  ]
+ }
+]

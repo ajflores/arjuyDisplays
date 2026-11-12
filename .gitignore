@@ -1,0 +1,22 @@
+/build/
+/pkgbuild/pkg/
+/pkgbuild/src/
+*.pkg.tar.*
+# artefactos de compilación
+Makefile
+Makefile.*
+.qmake.stash
+.qmake.cache
+*.o
+moc_*
+qrc_*
+ui_*
+*.moc
+.rcc/
+.obj/
+.moc/
+*.pro.user*
+.qtc_clangd/
+arjuy-displays
+*.so
+*.a

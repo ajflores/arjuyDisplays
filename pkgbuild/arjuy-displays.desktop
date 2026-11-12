@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Displays
+Name[es]=Pantallas
+Comment=Arrange, identify and configure monitors
+Comment[es]=Ordena, identifica y configura los monitores
+Exec=arjuy-displays
+Icon=arjuy-displays
+Terminal=false
+Categories=Utility;Settings;
+StartupWMClass=arjuy-displays
